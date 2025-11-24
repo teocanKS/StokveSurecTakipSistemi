@@ -1,52 +1,36 @@
-# Operating System Files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# Environment variables (CRITICAL - NEVER COMMIT)
+.env
+.env.local
+.env.production
 
-# IDE & Editor Files
+# Database credentials
+src/config/database_local.php
+
+# Logs
+*.log
+/var/log/
+
+# PHP
+vendor/
+composer.lock
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-.project
-.settings/
 
-# PHP
-vendor/
-composer.phar
-composer.lock
+# OS
+.DS_Store
+Thumbs.db
 
-# Configuration Files (SENSITIVE - DO NOT COMMIT)
-src/config/database.php
-src/config/config.php
-.env
-.env.local
-
-# Logs
-logs/*.log
-*.log
-
-# Temporary Files
+# Temp files
 tmp/
 temp/
-*.tmp
-
-# Node Modules (if using npm for Tailwind)
-node_modules/
-package-lock.json
-
-# Compiled CSS (if using Tailwind CLI)
-public/css/tailwind-compiled.css
-
-# Upload Directory (if any)
-uploads/
-public/uploads/
-
-# Cache
 cache/
-*.cache
+
+# Backup files
+*.bak
+*.backup
+*~
