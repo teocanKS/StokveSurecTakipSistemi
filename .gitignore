@@ -1,0 +1,52 @@
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# PHP
+vendor/
+composer.phar
+composer.lock
+
+# Configuration Files (SENSITIVE - DO NOT COMMIT)
+src/config/database.php
+src/config/config.php
+.env
+.env.local
+
+# Logs
+logs/*.log
+*.log
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+
+# Node Modules (if using npm for Tailwind)
+node_modules/
+package-lock.json
+
+# Compiled CSS (if using Tailwind CLI)
+public/css/tailwind-compiled.css
+
+# Upload Directory (if any)
+uploads/
+public/uploads/
+
+# Cache
+cache/
+*.cache
