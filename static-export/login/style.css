@@ -1,0 +1,12 @@
+/**
+ * Login Page Styles
+ */
+
+/* Tailwind custom config via JS */
+/* (This is handled by Tailwind CDN, but custom styles can be added here) */
+
+/* Additional custom styles specific to login page */
+.glass-effect {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+}
