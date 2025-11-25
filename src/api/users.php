@@ -2,10 +2,8 @@
 /**
  * Users API Endpoint
  *
- * GET /src/api/users.php - Kullanıcı listesi
- * PATCH /src/api/users.php - Kullanıcı rol güncelleme
- *
- * SADECE yönetici erişebilir
+ * GET  /src/api/users.php - Liste tüm kullanıcılar (Yönetici only)
+ * POST /src/api/users.php - Kullanıcı onaylama/güncelleme (Yönetici only)
  */
 
 // Middleware
@@ -17,109 +15,98 @@ require_once __DIR__ . '/../auth/middleware.php';
 try {
     $pdo = getDbConnection();
 
-    // GET: Kullanıcı listesi
+    // GET: Kullanıcı Listesi
     if (isMethod('GET')) {
-        // Rol filtresi (opsiyonel)
-        $roleFilter = $_GET['role'] ?? null;
+        $query = '
+            SELECT
+                "Users_ID" as id,
+                "Email" as email,
+                "full_name" as full_name,
+                "role",
+                "is_approved",
+                "created_at"
+            FROM "Users"
+            ORDER BY "created_at" DESC
+        ';
 
-        $query = 'SELECT "Users_ID", "Name", "Surname", "Email", "role" FROM "Users"';
-        $params = [];
-
-        if ($roleFilter && in_array($roleFilter, [ROLE_YONETICI, ROLE_PERSONEL])) {
-            $query .= ' WHERE "role" = :role';
-            $params[':role'] = $roleFilter;
-        }
-
-        $query .= ' ORDER BY "Name", "Surname"';
-
-        $stmt = $pdo->prepare($query);
-        $stmt->execute($params);
+        $stmt = $pdo->query($query);
         $users = $stmt->fetchAll();
 
-        // Password alanını çıkar (güvenlik)
+        // Her kullanıcı için ek bilgiler
         $users = array_map(function($user) {
-            return [
-                'Users_ID' => $user['Users_ID'],
-                'Name' => $user['Name'],
-                'Surname' => $user['Surname'],
-                'Email' => $user['Email'],
-                'role' => $user['role'],
-                'full_name' => trim(($user['Name'] ?? '') . ' ' . ($user['Surname'] ?? ''))
-            ];
+            $user['is_approved'] = (bool) $user['is_approved'];
+            $user['role_label'] = $user['role'] === 'yonetici' ? 'Yönetici' : 'Personel';
+            return $user;
         }, $users);
 
         successResponse($users, 'Kullanıcılar başarıyla alındı');
     }
 
-    // PATCH: Rol güncelleme
-    elseif (isMethod('PATCH')) {
+    // POST: Kullanıcı Güncelleme
+    elseif (isMethod('POST')) {
+        // CSRF kontrolü
         $input = getJsonInput();
-
-        // CSRF token kontrolü
         if (!isset($input['csrf_token']) || !validateCsrfToken($input['csrf_token'])) {
-            unauthorizedResponse('Geçersiz CSRF token');
+            errorResponse('Geçersiz CSRF token', 403);
         }
 
-        // Validation
-        if (empty($input['user_id']) || !validateInteger($input['user_id'])) {
-            validationErrorResponse(['user_id' => 'Geçersiz kullanıcı ID']);
+        // Input validation
+        $user_id = $input['user_id'] ?? null;
+        $action = $input['action'] ?? null; // 'approve' veya 'reject'
+
+        if (empty($user_id) || !validateInteger($user_id)) {
+            errorResponse('Geçerli bir kullanıcı seçin', 400);
         }
 
-        if (empty($input['role']) || !in_array($input['role'], [ROLE_YONETICI, ROLE_PERSONEL])) {
-            validationErrorResponse(['role' => 'Geçersiz rol. Sadece "yonetici" veya "personel" olabilir']);
+        if (!in_array($action, ['approve', 'reject'])) {
+            errorResponse('Geçersiz işlem', 400);
         }
-
-        $userId = (int)$input['user_id'];
-        $newRole = $input['role'];
 
         // Kullanıcı var mı kontrol et
-        $stmt = $pdo->prepare('SELECT "Users_ID", "Name", "Surname", "Email", "role" FROM "Users" WHERE "Users_ID" = :id');
-        $stmt->execute([':id' => $userId]);
+        $stmt = $pdo->prepare('SELECT "Users_ID", "Email" FROM "Users" WHERE "Users_ID" = :user_id');
+        $stmt->execute(['user_id' => $user_id]);
         $user = $stmt->fetch();
 
         if (!$user) {
-            notFoundResponse('Kullanıcı bulunamadı');
+            errorResponse('Kullanıcı bulunamadı', 404);
         }
 
-        // Kendi rolünü değiştiremez
-        if ($userId === $currentUser['id']) {
-            forbiddenResponse('Kendi rolünüzü değiştiremezsiniz');
+        // Kendi kendini reddedemez/onaylayamaz
+        if ($user_id == $currentUser['Users_ID']) {
+            errorResponse('Kendi hesabınızı güncelleyemezsiniz', 400);
         }
 
-        // Rol güncelle
-        $stmt = $pdo->prepare('UPDATE "Users" SET "role" = :role WHERE "Users_ID" = :id');
+        // Güncelle
+        $is_approved = ($action === 'approve');
+
+        $stmt = $pdo->prepare('
+            UPDATE "Users"
+            SET "is_approved" = :is_approved
+            WHERE "Users_ID" = :user_id
+        ');
+
         $stmt->execute([
-            ':role' => $newRole,
-            ':id' => $userId
+            'is_approved' => $is_approved,
+            'user_id' => $user_id
         ]);
 
-        // Güvenlik log'u
-        logSecurityEvent('User role updated', [
-            'updated_user_id' => $userId,
-            'updated_user_email' => $user['Email'],
-            'old_role' => $user['role'],
-            'new_role' => $newRole,
-            'updated_by' => $currentUser['id']
+        logSecurityEvent('User status updated', [
+            'target_user_id' => $user_id,
+            'action' => $action,
+            'by_user_id' => $currentUser['Users_ID']
         ]);
 
         successResponse([
-            'user_id' => $userId,
-            'new_role' => $newRole
-        ], 'Kullanıcı rolü başarıyla güncellendi');
+            'user_id' => $user_id,
+            'is_approved' => $is_approved
+        ], 'Kullanıcı durumu güncellendi');
     }
-
-    // PUT / POST: Yeni kullanıcı oluşturma (opsiyonel, gerekirse eklenebilir)
-    // Şu an için kullanıcılar manuel olarak veritabanına ekleniyor
 
     else {
-        // Method not allowed
-        requireMethod(['GET', 'PATCH']);
+        errorResponse('Geçersiz istek metodu', 405);
     }
 
-} catch (PDOException $e) {
-    error_log('Users API DB error: ' . $e->getMessage());
-    serverErrorResponse('Veritabanı hatası');
 } catch (Exception $e) {
     error_log('Users API error: ' . $e->getMessage());
-    serverErrorResponse('İşlem sırasında hata oluştu');
+    serverErrorResponse('Kullanıcı işlemi sırasında bir hata oluştu');
 }

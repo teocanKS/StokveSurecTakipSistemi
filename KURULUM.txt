@@ -1,0 +1,289 @@
+╔══════════════════════════════════════════════════════════════════════╗
+║                                                                      ║
+║       DOĞU AŞ - STOK VE SÜREÇ TAKİP SİSTEMİ                        ║
+║       Raspberry Pi + Nginx + PHP + Supabase                          ║
+║                                                                      ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+📋 SİSTEM GEREKSİNİMLERİ
+═══════════════════════════════════════════════════════════════════════
+- Raspberry Pi 3/4 (veya herhangi bir Linux sunucu)
+- Nginx
+- PHP 8.2 veya 7.4 (php-fpm, php-pgsql, php-mbstring)
+- Internet bağlantısı (Supabase için)
+- En az 1GB RAM
+
+
+🚀 HIZLI KURULUM
+═══════════════════════════════════════════════════════════════════════
+
+1. Projeyi Raspberry Pi'ye kopyala:
+
+   scp -r /proje/klasoru pi@raspberry-ip:/home/pi/stokve
+
+
+2. SSH ile bağlan:
+
+   ssh pi@raspberry-ip
+
+
+3. Kurulum script'ini çalıştır:
+
+   cd /home/pi/stokve
+   sudo chmod +x install.sh
+   sudo bash install.sh
+
+
+4. Environment variables'ı düzenle:
+
+   sudo nano /var/www/stokve/.env
+
+   # Supabase bilgilerini gir:
+   SUPABASE_URL=https://...
+   SUPABASE_SERVICE_KEY=eyJ...
+   DB_PASSWORD=your_password
+
+
+5. Test kullanıcısı oluştur:
+
+   php /var/www/stokve/generate_test_hash.php
+
+   # Çıkan SQL query'lerini Supabase SQL Editor'de çalıştır
+
+
+6. Tarayıcıdan test et:
+
+   http://raspberry-ip
+
+
+🔧 MANUEL KURULUM (Adım Adım)
+═══════════════════════════════════════════════════════════════════════
+
+1. Sistem güncelle:
+   sudo apt update && sudo apt upgrade -y
+
+
+2. Nginx kur:
+   sudo apt install -y nginx
+
+
+3. PHP kur:
+   sudo apt install -y php8.2-fpm php8.2-pgsql php8.2-mbstring php8.2-xml php8.2-curl
+
+
+4. Proje dosyalarını kopyala:
+   sudo mkdir -p /var/www/stokve
+   sudo cp -r * /var/www/stokve/
+   sudo chown -R www-data:www-data /var/www/stokve
+
+
+5. Nginx config'i ayarla:
+   sudo cp /var/www/stokve/nginx.conf /etc/nginx/sites-available/stokve
+   sudo ln -sf /etc/nginx/sites-available/stokve /etc/nginx/sites-enabled/
+   sudo rm /etc/nginx/sites-enabled/default
+
+
+6. PHP-FPM ayarları:
+   sudo nano /etc/php/8.2/fpm/php.ini
+
+   # Şu satırları bul ve değiştir:
+   memory_limit = 256M
+   upload_max_filesize = 20M
+   post_max_size = 20M
+
+
+7. Servisleri başlat:
+   sudo systemctl restart php8.2-fpm
+   sudo systemctl restart nginx
+   sudo systemctl enable php8.2-fpm
+   sudo systemctl enable nginx
+
+
+8. .env dosyasını oluştur:
+   cd /var/www/stokve
+   sudo cp .env.example .env
+   sudo nano .env
+
+
+9. Test et:
+   nginx -t
+   curl -I http://localhost
+
+
+📊 DATABASE HAZIRLAMA (Supabase)
+═══════════════════════════════════════════════════════════════════════
+
+1. Supabase Dashboard'a git
+2. SQL Editor'ü aç
+3. Şu field'ları Users tablosuna ekle (eğer yoksa):
+
+   ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "is_approved" BOOLEAN DEFAULT false;
+   ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "created_at" TIMESTAMPTZ DEFAULT NOW();
+
+
+4. Test kullanıcısı ekle:
+
+   -- Önce PHP ile hash oluştur:
+   php /var/www/stokve/generate_test_hash.php
+
+   -- Çıkan INSERT query'lerini Supabase'e yapıştır
+
+
+🧪 TEST
+═══════════════════════════════════════════════════════════════════════
+
+1. Login test:
+   - http://raspberry-ip/
+   - Email: yonetici@test.com
+   - Password: 123456
+
+
+2. Yönetici özellikleri test et:
+   - Kullanıcı onaylama
+   - Stok ekleme
+   - Geçmiş filtreleme
+
+
+3. Personel test:
+   - Önce Yönetici ile gir
+   - Kullanıcı yönetiminden Personel'i onayla
+   - Logout → Personel ile gir
+
+
+🔒 GÜVENLİK
+═══════════════════════════════════════════════════════════════════════
+
+✅ Yapılmış:
+  - CSRF token protection
+  - XSS protection
+  - SQL injection prevention
+  - Session hijacking detection
+  - Rate limiting
+  - Password hashing (bcrypt)
+
+
+❗ Yapılması gerekenler (production için):
+
+1. HTTPS aktif et:
+   sudo apt install certbot python3-certbot-nginx
+   sudo certbot --nginx -d your-domain.com
+
+
+2. Firewall ayarla:
+   sudo ufw allow 22
+   sudo ufw allow 80
+   sudo ufw allow 443
+   sudo ufw enable
+
+
+3. .env dosyasını koru:
+   sudo chmod 600 /var/www/stokve/.env
+
+
+4. Session güvenliğini artır (.env):
+   SESSION_SECURE=true  # HTTPS kullanıyorsan
+
+
+📁 DOSYA YAPISI
+═══════════════════════════════════════════════════════════════════════
+
+/var/www/stokve/
+├── public/              # Web root (Nginx buraya point eder)
+│   ├── index.php        # Login sayfası
+│   ├── js/
+│   │   └── common.js    # Shared JavaScript
+│   ├── personel/        # Personel paneli (4 sayfa)
+│   └── yonetici/        # Yönetici paneli (5 sayfa)
+│
+├── src/
+│   ├── config/          # Konfigürasyon dosyaları
+│   │   ├── database.php # Database bağlantı
+│   │   ├── config.php   # Uygulama ayarları
+│   │   └── env.php      # Environment loader
+│   ├── auth/            # Authentication
+│   ├── api/             # REST API endpoints (6 adet)
+│   └── utils/           # Helper fonksiyonlar
+│
+├── .env                 # Environment variables (GİZLİ!)
+├── nginx.conf           # Nginx config
+└── install.sh           # Kurulum scripti
+
+
+📞 SORUN GİDERME
+═══════════════════════════════════════════════════════════════════════
+
+❌ 502 Bad Gateway:
+   - PHP-FPM çalışıyor mu kontrol et:
+     sudo systemctl status php8.2-fpm
+   - Socket path doğru mu:
+     ls -la /var/run/php/
+
+
+❌ 403 Forbidden:
+   - Dosya izinlerini kontrol et:
+     sudo chown -R www-data:www-data /var/www/stokve
+     sudo chmod -R 755 /var/www/stokve
+
+
+❌ Database bağlantı hatası:
+   - .env dosyasını kontrol et
+   - Supabase credentials doğru mu?
+   - Internet bağlantısı var mı?
+
+
+❌ Login olmuyor:
+   - Test kullanıcısı oluşturuldu mu?
+   - is_approved = true mi?
+   - Password hash doğru mu?
+
+
+📊 LOG DOSYALARI
+═══════════════════════════════════════════════════════════════════════
+
+Nginx:
+  /var/log/nginx/stokve-access.log
+  /var/log/nginx/stokve-error.log
+
+PHP-FPM:
+  /var/log/php8.2-fpm.log
+
+Sistem:
+  /var/log/syslog
+
+
+🎯 ÖNEMLİ NOTLAR
+═══════════════════════════════════════════════════════════════════════
+
+1. .env dosyasını ASLA commit etmeyin!
+2. Production'da SESSION_SECURE=true yapın (HTTPS ile)
+3. Düzenli backup alın (database + dosyalar)
+4. Log dosyalarını kontrol edin
+5. PHP ve Nginx güncel tutun
+
+
+📈 PERFORMANS ÖNERİLERİ
+═══════════════════════════════════════════════════════════════════════
+
+1. PHP-FPM worker sayısını artır (yoğun kullanım için):
+   sudo nano /etc/php/8.2/fpm/pool.d/www.conf
+   pm.max_children = 10
+   pm.start_servers = 4
+
+
+2. Nginx caching aktif et (static dosyalar için)
+
+
+3. Database connection pooling (zaten var)
+
+
+📧 DESTEK
+═══════════════════════════════════════════════════════════════════════
+
+Sistem Claude tarafından geliştirilmiştir.
+Sorun bildirimi için log dosyalarını kontrol edin.
+
+
+═══════════════════════════════════════════════════════════════════════
+Version: 1.0.0
+Last Updated: 2025
+═══════════════════════════════════════════════════════════════════════
